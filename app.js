@@ -5,8 +5,24 @@ const routes = require('./routes.js');
 const logger = require('morgan');
 const bodyParser = require('body-parser').json();
 let port = process.env.PORT || 3000;
+
 app.use(logger('dev'));
 app.use(bodyParser);
+
+let mongoose = require('mongoose');
+
+mongoose.connect('mongodb://localhost:27017/test');
+
+let db = mongoose.connection;
+
+db.on('error', (err) => {
+    console.log(err);
+});
+
+db.once('open', () => {
+    console.log('conncection established');
+});
+
 app.use('/questions', routes);
 app.use((req, res, next) => {
     const err = new Error("Not found");
@@ -21,6 +37,6 @@ app.use((err, req, res, next) => {
         }
     });
 });
-app.listen(3000, () => {
-    console.log('App is listening at port 3000');
+app.listen(port, () => {
+    console.log(`App is listening at port ${port}`);
 });

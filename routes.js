@@ -1,46 +1,84 @@
 const express = require('express');
 const router = express.Router();
 
+let Question = require('./models').Question;
+
+router.param('qID', (req, res, next, id) => {
+    Question.findById(id, (err, doc) => {
+        if (err) {
+            return next(err);
+        }
+        if (!doc) {
+            err = new Error('Not Found');
+            err.status = 404;
+            return next(err);
+        }
+        req.question = doc;
+        return next();
+    });
+});
+
+router.param('aID', (req, res, next, id) => {
+    req.answer = req.question.answers.id(id);
+    if (!req.answer) {
+        err = new Error('Not Found');
+        err.status = 404;
+        return next(err);
+    }
+    next();
+});
+
 /** request to get questions */
 /** GET /questions */
 router.get('/', (req, res) => {
-    res.json({ name: "Sahil" });
+    Question.find({}, null, { sort: { createdAt: -1 } }, (err, questions) => {
+        if (err) {
+            return next(err);
+        }
+        res.json(questions);
+    });
 });
 
 /** request to get a specific question */
 /** GET /questions/:qiD */
-router.get('/:qID', (req, res) => {
-    res.json({ answer: "You sent a request for " + req.params.qID });
+router.get('/:qID', (req, res, next) => {
+    res.json(req.question);
 });
 
 /** request to post questions */
 /** POST /questions */
-router.post('/', (req, res) => {
-    res.json({
-        answer: "You sent a post request",
-        body: req.body
+router.post('/', (req, res, next) => {
+    var question = new Question(req.body);
+    question.save((err, question) => {
+        if (err) {
+            return next(err);
+        }
+        res.status(201);
+        res.json(question);
     });
 });
 
 /** request to post answers to a question */
 /** POST /:qID/answers */
-router.post('/:qID/answers', (req, res) => {
-    res.json({
-        answer: "You sent a post request to /answers",
-        body: req.body,
-        questionID:req.params.qID,
+router.post('/:qID/answers', (req, res, next) => {
+    req.question.answers = req.question.answers.concat(req.body);
+    req.question.save((err, question) => {
+        if (err) {
+            return next(err);
+        }
+        res.status(201);
+        res.json(question);
     });
 });
 
 /** request to create an answer */
 /** POST /questions/:qID/answers/:aID */
 router.put('/:qID/answers/:aID', (req, res) => {
-    res.json({
-        answer: "You sent a put request to /answers",
-        body: req.body,
-        questionID: req.params.qID,
-        answerID: req.params.aID
-
+    req.answer.update(req.body, function (err, result) {
+        if (err) {
+            return next(err);
+        }
+        res.json(result);
     });
 });
 
@@ -48,31 +86,34 @@ router.put('/:qID/answers/:aID', (req, res) => {
 /** request to DELETE an answer */
 /** DELETE /questions/:qID/answers/:aID */
 router.delete('/:qID/answers/:aID', (req, res) => {
-    res.json({
-        answer: "You sent a put request to /answers",
-        questionID: req.params.qID,
-        answerID: req.params.aID
-
+    req.answer.remove((err) => {
+        req.question.save((err, question) => {
+            if (err) {
+                return next(err);
+            }
+            res.json(question);
+        });
     });
 });
 // POST /questions/:qID/answers/:aID/vote-up
 // POST /questions/:qID/answers/:aID/vote-down
 // Vote on a specific answer
-router.post("/:qID/answers/:aID/vote-:dir", (req, res, next)=>{
-    if(req.params.dir.search(/^(up|down)$/) === -1) {
-        var err = new Error("Not Found");
+router.post("/:qID/answers/:aID/vote-:dir", (req, res, next) => {
+    if (req.params.dir.search(/^(up|down)$/) === -1) {
+        let err = new Error("Not Found");
         err.status = 404;
         next(err);
     } else {
+        req.vote = req.params.dir;
         next();
     }
-}, (req, res)=>{
-res.json({
-    response: "You sent me a POST request to /vote-" + req.params.dir,
-    questionId: req.params.qID,
-    answerId: req.params.aID,
-    vote: req.params.dir
-});
+}, (req, res, next) => {
+    req.answer.vote(req.vote, (err, question) => {
+        if (err) {
+            return next(err);
+        }
+        res.json(question);
+    });
 });
 
 module.exports = router;
